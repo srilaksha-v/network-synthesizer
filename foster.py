@@ -60,9 +60,9 @@ def draw_Z_circuit(eqn, val):
             numerator, denominator = mod_term.as_numer_denom()
             print("Numerator", numerator, "denominator", denominator)
             if sp.degree(denominator) == 0 and numerator.has(s): # s implies an inductance in series
-                L_val = term.coeff(s)
+                L_val = mod_term.coeff(s)
                 d += elm.Inductor().label(f'L = {L_val} H')
-            elif term.has(s**2):  # (a * s)/(d*(s**2 + b)) form implies parallel L and C
+            elif mod_term.has(s**2):  # (a * s)/(d*(s**2 + b)) form implies parallel L and C
                 # numerator, denominator = term.as_numer_denom()
                 print(numerator, denominator)
                 # Extract coefficients
@@ -126,11 +126,11 @@ def draw_Z_circuit(eqn, val):
                 d += elm.Line().right().length(3)
                 # d.pop()
             elif sp.degree(denominator) == 0 and sp.degree(numerator)==0:
-                R_val = term
+                R_val = mod_term
                 d += elm.Resistor().label(f'R = {R_val} ohm')
     
-            elif term.has(1/s):  # 1/s term implies a capacitance in series
-                numerator, denominator = term.as_numer_denom()
+            elif mod_term.has(1/s):  # 1/s term implies a capacitance in series
+                numerator, denominator = mod_term.as_numer_denom()
                 print("num den", numerator, denominator)
                 # Extract coefficients
                 m = denominator.coeff(s) 
@@ -139,7 +139,7 @@ def draw_Z_circuit(eqn, val):
                 C_val = m / n
                 d += elm.Capacitor().label(f'C = {C_val} F')
             elif sp.degree(denominator) == 0 and sp.degree(numerator)==0:
-                R_val = term
+                R_val = mod_term
                 d += elm.Resistor().label(f'R = {R_val} ohm')
             d += elm.Line().right()
         # Save the drawing to a file
@@ -152,21 +152,26 @@ def draw_Z_circuit(eqn, val):
 def draw_Y_circuit(eqn,val):
     s = sp.symbols('s')
     mod_eqn=eqn/(s**val)
+    print("val", val)
+    print(mod_eqn,sp.apart(mod_eqn, s).as_ordered_terms())
+    #mod_eqn=((s+2)*(s+4))/((s+1)*(s+3))
     foster_expansion = sp.apart(mod_eqn, s)
     terms = foster_expansion.as_ordered_terms()
+    print("foster 2 mod terms",terms)
     with schemdraw.Drawing() as d:
         for term in terms:
             mod_term=term*(s**val)
+            print("mod_terms",mod_term)
             numerator, denominator = mod_term.as_numer_denom()
             if sp.degree(denominator) == 0 and numerator.has(s):  # s implies a capacitance in parallel
-                C_val = 1 / term.coeff(s)
+                C_val = mod_term.subs(s,1)
                 d.push()
                 d += elm.Line().right()
                 d += elm.Line().up()
                 d += elm.Capacitor().label(f'C = {C_val} F').up()
                 d += elm.Line().left()
                 d.pop()
-            elif term.has(s**2):  # (a * s)/(d*(s**2 + b)) form implies parallel C and L
+            elif mod_term.has(s**2):  # (a * s)/(d*(s**2 + b)) form implies parallel C and L
                 # Extract coefficients
                 a = numerator.coeff(s)  # Coefficient of s in numerator
                 d_val = denominator.coeff(s**2)  # Coefficient of s^2 in denominator
@@ -187,7 +192,8 @@ def draw_Y_circuit(eqn,val):
                 a = numerator.coeff(s) / denominator.coeff(s)
                 b = denominator.subs(s, 0) / denominator.coeff(s)
                 C_val = a / b
-                R_val = a
+                R_val = 1 / a
+                print("a, 1/a", a, R_val)
                 d.push()
                 d += elm.Line().right()
                 d += elm.Capacitor().label(f'C = {C_val} F').up()
@@ -199,7 +205,7 @@ def draw_Y_circuit(eqn,val):
             elif denominator.has(s) and denominator.subs(s, 0) != 0:  # a/(s+b)
                 a = numerator / denominator.coeff(s)
                 b = denominator.subs(s, 0) / denominator.coeff(s)
-                R_val = a / b
+                R_val = b / a
                 L_val = 1 / a
                 d.push()
                 d += elm.Line().right()
@@ -209,32 +215,33 @@ def draw_Y_circuit(eqn,val):
                 d.pop()
                 # d += elm.Line().right()
 
-            # elif term.has(1/s):  # 1/s term implies an inductance in parallel
-            #     numerator, denominator = term.as_numer_denom()
-            #     m = denominator.coeff(s) 
-            #     n = numerator
-
-            #     L_val = n / m
-            #     d.push()
-            #     d += elm.Line().right()
-            #     d += elm.Line().up()
-            #     d += elm.Inductor().label(f'L = {L_val} H').up()
-            #     d += elm.Line().left()
-            #     d.pop()
-
-            else:
-                R_val = term
+            elif sp.degree(denominator)==0 and sp.degree(numerator)==0:
+                R_val = 1/mod_term
                 d.push()
                 d += elm.Line().right()
                 d += elm.Line().up()
                 d += elm.Resistor().label(f'R = {R_val} ohm').up()
                 d += elm.Line().left()
                 d.pop()
+
+            elif sp.degree(denominator)==1 and sp.degree(numerator)==0:  # 1/s term implies an inductance in parallel
+                #print("coeff",term.coeff(1/s))
+                numerator, denominator = mod_term.as_numer_denom()
+                m = denominator.subs(s,1) 
+                n = numerator
+
+                L_val = n / m
+                d.push()
+                d += elm.Line().right()
+                d += elm.Line().up()
+                d += elm.Inductor().label(f'L = {L_val} H').up()
+                d += elm.Line().left()
+                d.pop()
+
             d += elm.Line().right()
 
-            
         # Save the drawing to a file
-        d.save('circuit.png')  # Save as 'circuit.png'
+    d.save('circuit.png')  # Save as 'circuit.png'
         
     # Display the image in Streamlit
     st.image('circuit.png')
@@ -245,9 +252,13 @@ def draw_Y_circuit(eqn,val):
 
 def find_typeofcircuit(function,foster_form):
     # get form input
+    print("inside typecheck function", function)
     form=foster_form
     s = sp.symbols('s')
-    numerator, denominator = function.as_numer_denom()
+    if foster_form==2:
+        denominator,numerator = function.as_numer_denom()
+    else:
+        numerator, denominator = function.as_numer_denom()
     zeros = sp.solve(numerator, s)
     poles = sp.solve(denominator, s)
     # print(poles)
@@ -298,6 +309,7 @@ def find_typeofcircuit(function,foster_form):
     is_alternating_real_sorted = is_sortedreal(alternating_real)
 
     valid_circuit=False
+    circuit_drawn=False
 
     if(is_alternating_real_sorted and (len(alternating_real) > 0) and alternating_real[-1]<=0):
         #print("its either RL or RC")
@@ -306,10 +318,14 @@ def find_typeofcircuit(function,foster_form):
          if(real_poles[-1]>real_zeros[-1]):
             print("this is an RC circuit")
             if(form==2):
+                circuit_drawn=True
+                print("RC form 2")
                 draw_Y_circuit(function,1)
             # return "RC"
          else:
             if(form==1):
+                circuit_drawn=True
+                print("RC form 1")
                 draw_Z_circuit(function,1)
             print("this is RL circuit")
             # return "RL"
@@ -322,13 +338,13 @@ def find_typeofcircuit(function,foster_form):
 
     # Check if alternating_complex is sorted
     is_complex_sorted = is_sorted(alternating_complex)
-    if is_complex_sorted and len(alternating_complex) != 0:
+    if is_complex_sorted and len(alternating_complex) >2:
         valid_circuit=True
         print("This is an LC impedance circuit.")
         # return "LC"
     
     print(valid_circuit)
-    if valid_circuit:
+    if valid_circuit and not(circuit_drawn):
         print("here is a valid circuit")
         if form==1:
             draw_Z_circuit(function,0)
@@ -352,44 +368,18 @@ st.title("Circuit Synthesis Web Application")
 
 # User input for equation
 # st.subheader("Input Transfer Function")
-input_eqn = st.text_input("Enter transfer function (e.g., ((s + 1) * (s + 4))/(s*(s + 2) * (s + 5))):", "")
+input_eqn = st.text_input("Enter transfer function (e.g., ((s + 1) * (s + 4))/(s*(s + 2) * (s + 5))):","((s + 1) * (s + 4))/(s*(s + 2) * (s + 5))")
 eqn = sp.sympify(input_eqn)
 
 # Dropdown for choosing type of circuit
 circuit_type = st.selectbox("Select circuit type:", ("Impedance (Z)", "Admittance (Y)"))
 form=0
-if(circuit_type=="Impedance (Z)"):
-    form=1
-else:
-    form=2
 
-find_typeofcircuit(eqn,form )
+if st.button("Generate Circuit"):
+    if(circuit_type=="Impedance (Z)"):
+        form=1
+    else:
+        form=2
 
+    find_typeofcircuit(eqn,form )
 
-#---------------------------------------------------------
-
-
-eqn=((s + 1) * (s + 4))/(s*(s + 2) * (s + 5))
-
-# Z_s = ((s**2 + 2) * (s**2 + 4)) / (s * (s**2 + 3))
-F_s = ((s**2 + 1) * (s**2 + 3)) / (s * (s**2 + 2)*(s**2 + 4))
-
-#F_s=(s * (s**2 + 2))/((s**2 + 1) * (s**2 + 3))
-
-#F_s=((s+1)*(s+3))/((s+2)*(s+6))
-
-# Analyze the input and draw the circuit if equation is provided
-# if input_eqn:
-    # Parse the equation entered by the user
-    # try:
-    #     eqn = sp.sympify(input_eqn)
-    #     st.write(f"Parsed Equation: {eqn}")
-
-    #     # Button to start the drawing process
-    #     if st.button("Draw Circuit Diagram"):
-    #         if circuit_type == "Impedance (Z)":
-    #             draw_circuit_diagram("Z", eqn, 1)
-    #         else:
-    #             draw_circuit_diagram("Y", eqn, 1)
-    # except Exception as e:
-    #     st.error(f"Error parsing equation: {e}")
